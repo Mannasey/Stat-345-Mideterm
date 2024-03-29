@@ -1,0 +1,283 @@
+---
+title: "STAT 345 Midterm Project"
+font: 12pt
+date: "Due March 29"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+> "Our offense is like the Pythagorean Theorem. There is no answer!", _Shaquille O'Neal_
+
+## The Background
+
+Your role for the midterm project is that of data analyst intern at an NBA (professional basketball) team. Your direct supervisor (also part of the analytics team) has asked you to create a data visualization to illustrate how (or if) the team's shots have changed over time. After some initial clarifying questions, your supervisor confessed that they had seen some pretty cool shot charts at http://savvastjortjoglou.com/nba-shot-sharts.html and would like to extend the ideas a bit. 
+
+Your data for the midterm project may come from a variety of sources, including the NBA directly, as well as Basketball-Reference, HoopsHype, and others. There are several ways to access the data, but perhaps the simplest is through the `nbastatR` package, which serves as a wrapper (or set of helper functions) for these various data sources. There is a lot of potentially useful information that can be found using this package; unfortunately, the documentation is somewhat inconsistent. For example, the documentation at https://www.rdocumentation.org/packages/nbastatR/versions/0.1.110202031 is pretty well-formatted and easy to navigate, but the current function names have changed a bit (see `?nbastatR` and click "Index"). (If you use the nbastatR package, you'll want to install the package using the following code. There are other packages with this type of data, though.) You are welcome to scrape other websites or use other packages if you choose.
+
+```
+library(devtools)
+devtools::install_github("abresler/nbastatR")
+```
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+library(tidyr)
+library(dplyr)
+library(purrr)
+library(devtools)
+install_github("abresler/nbastatR")
+library(nbastatR)
+library(tidyverse)
+library(ggplot2)
+library(ggthemes)
+```
+
+
+```{r echo=FALSE}
+Sys.setenv("VROOM_CONNECTION_SIZE" = 131072 * 2)
+shots_2000 <- teams_shots (teams = "Milwaukee Bucks", seasons = 2000)
+shots_2010 <- teams_shots (teams = "Milwaukee Bucks", seasons =2010)
+shots_2021 <- teams_shots (teams = "Milwaukee Bucks", seasons =2021)
+shot_data <- rbind(shots_2000, shots_2010, shots_2021)
+
+```
+
+
+
+
+## The following code was found on GitHub to create the basketball court
+
+```{r echo=FALSE}
+
+#The following code is how the court is made.
+court <- ggplot(data=data.frame(x=1,y=1),aes(x*10,y*10))+
+   ###outside box:
+geom_path(data=data.frame(x=c(-27,-27,27,27,-27),y=c(-4,50,50,-4,-4)))+
+   ###key:
+geom_path(data=data.frame(x=c(-8,-8,8,8,-8),y=c(-4,14,14,-4,-4)))+
+   ###box inside the key:
+geom_path(data=data.frame(x=c(-6,-6,6,6,-6),y=c(-4,14,14,-4,-4)))+
+   ###restricted area semicircle:
+geom_path(data=data.frame(x=c(-4000:(-1)/1000,1:4000/1000),y=c(0+sqrt(4^2-c(-4000:(-1)/1000,1:4000/1000)^2))),aes(x=x*10,y=y*11))+
+   ###halfcourt semicircle:
+geom_path(data=data.frame(x=c(-6000:(-1)/1000,1:6000/1000),y=c(50-sqrt(6^2-c(-6000:(-1)/1000,1:6000/1000)^2))),aes(x=x*10,y=y*10))+
+   ###rim:
+geom_path(data=data.frame(x=c(-750:(-1)/1000,1:750/1000,750:1/1000,-1:-750/1000),y=c(c(-3+sqrt(0.75^2-c(-750:(-1)/1000,1:750/1000)^2)),c(-3-sqrt(0.75^2-c(750:1/1000,-1:-750/1000)^2)))),aes(x=x*10,y=y*10))+
+   ###backboard:
+geom_path(data=data.frame(x=c(-3,3),y=c(-4,-4)),lineend='butt')+
+   ###three-point line:
+geom_path(data=data.frame(x=c(-22,-22,-22000:(-1)/1000,1:22000/1000,22,22),y=c(-5,169/12,5.25+sqrt(23.75^2-c(-22000:(-1)/1000,1:22000/1000)^2),169/12,-5)),aes(x=x*10,y=y*8))+
+   ###fix aspect ratio to 1:1
+coord_fixed()
+```
+
+
+
+
+
+```{r echo=FALSE}
+# Group by yearSeason and calculate the mean of isShotMade
+shots2 <- shot_data %>%
+  group_by(yearSeason) %>%
+  mutate(isShotMade = 100 * isShotMade) %>%
+  summarize(madeshots = mean(isShotMade))
+
+# Rename the column to "madeshots"
+names(shots2)[names(shots2) == "mean(isShotMade)"] <- "madeshots"
+
+# Calculate missed shots by subtracting made shots from 100
+shots2 <- shots2 %>%
+  mutate(missedshots = 100 - madeshots)
+```
+
+
+
+
+```{r echo=FALSE}
+# Filtering missed shots from the shot_data dataframe and storing them in missed.shots
+
+missed.shots <- shot_data %>% dplyr::filter(typeEvent == "Missed Shot")
+# Filtering made shots from the shot_data dataframe and storing them in made.shots
+
+made.shots <- shot_data %>% dplyr::filter(typeEvent == "Made Shot")
+```
+
+
+```{r echo=FALSE}
+
+# Add points to the plot based on shot_data
+shots_plot2000 <- court +
+  geom_point(data = missed.shots %>% filter(yearSeason == 2000), aes(x = locationX, y = locationY, color = zoneRange, shape = typeEvent), alpha = 0.5) +
+  labs(x = "", y = "", shape = "Type Event", color = "Zone Range") + 
+  #facet_wrap(~yearSeason) +
+  theme_minimal() + 
+  ggtitle("Milwaukee Bucks' Shots 2000")
+# Show the plot
+print(shots_plot2000)
+
+shots_plot2010 <- court +
+  geom_point(data = missed.shots %>% filter(yearSeason == 2010), aes(x = locationX, y = locationY, color = zoneRange, shape = typeEvent), alpha = 0.5) +
+  labs(x = "", y = "", shape = "Type Event", color = "Zone Range") + 
+  #facet_wrap(~yearSeason) +
+  theme_minimal() + 
+  ggtitle("Milwaukee Bucks' Shots 2010")
+# Show the plot
+print(shots_plot2010)
+
+shots_plot2021 <- court +
+  geom_point(data = missed.shots %>% filter(yearSeason == 2021), aes(x = locationX, y = locationY, color = zoneRange, shape = typeEvent), alpha = 0.5) +
+  labs(x = "", y = "", shape = "Type Event", color = "Zone Range") + 
+  #facet_wrap(~yearSeason) +
+  theme_minimal() + 
+  ggtitle("Milwaukee Bucks' Shots 2021")
+# Show the plot
+print(shots_plot2021)
+```
+
+
+
+
+## This visualization illustrates missed shots, with colors representing the distance of players from the basket. A discernible trend emerges across the years, notably in 2000, 2010, and 2021. Over time, there appears to be a shift in shot selection, particularly evident inside the three-point line, which seems less favored compared to earlier periods. This shift is likely influenced by advancements in sports analytics, prompting changes in shooting preferences. For instance, in 2021, there's a noticeable inclination towards shooting from farther distances, possibly driven by the desire for higher point returns. However, this emphasis on longer-range shots also introduces challenges in accuracy, contributing to increased instances of missed shots. In contrast, players in 2000 and 2010 may have prioritized scoring efficiency over maximizing point potential, as reflected in their shot distribution.Analyzing missed backcourt shots within this datasets provides valuable insights into shot selection, scoring opportunities, defensive pressure, and player performance, enhancing understanding of the game's dynamics and identifying areas for improvement
+
+```{r echo=FALSE}
+# Add points to the plot based on shot_data
+shots_plot2000 <- court +
+  geom_point(data = made.shots %>% filter(yearSeason == 2000), aes(x = locationX, y = locationY, color = zoneRange, shape = typeEvent), alpha = 0.5) +
+  labs(x = "", y = "", shape = "Type Event", color = "Zone Range") + 
+  #facet_wrap(~yearSeason) +
+  theme_minimal() + 
+  ggtitle("Milwaukee Bucks' Shots 2000")
+# Show the plot
+print(shots_plot2000)
+
+shots_plot2010 <- court +
+  geom_point(data = made.shots %>% filter(yearSeason == 2010), aes(x = locationX, y = locationY, color = zoneRange, shape = typeEvent), alpha = 0.5) +
+  labs(x = "", y = "", shape = "Type Event", color = "Zone Range") + 
+  #facet_wrap(~yearSeason) +
+  theme_minimal() + 
+  ggtitle("Milwaukee Bucks' Shots 2010")
+# Show the plot
+print(shots_plot2010)
+
+shots_plot2021 <- court +
+  geom_point(data = made.shots %>% filter(yearSeason == 2021), aes(x = locationX, y = locationY, color = zoneRange, shape = typeEvent), alpha = 0.5) +
+  labs(x = "", y = "", shape = "Type Event", color = "Zone Range") + 
+  #facet_wrap(~yearSeason) +
+  theme_minimal() + 
+  ggtitle("Milwaukee Bucks' Shots 2021")
+# Show the plot
+print(shots_plot2021)
+```
+
+
+##The graph depicting made shots reflects a consistent trend over the years, indicating a shift in players' scoring strategies. As time progresses, players increasingly opt for shots from the 24+ft zone to accumulate points more rapidly, as observed prominently in 2021. This trend is accompanied by a significant number of shots attempted near the basket, potentially allowing for rebound opportunities if long-distance attempts fall short, aligning with basketball rules. In contrast, in 2000 and 2010, players predominantly focused on scoring within the 16-24ft range, overlooking the potential for higher point gains from shots beyond 24ft, a nuance highlighted by the 2021 data. Additionally, the inclusion of backcourt shots as made shots in 2010 underscores the remarkable skill required to successfully score from such distances, particularly under pressure, contributing significantly to a team's overall score and often regarded as a noteworthy achievement in basketball.
+```{r echo=FALSE}
+
+
+# Identify home and away games
+home_games <- subset(shot_data, slugTeamHome == "MIL")
+away_games <- subset(shot_data, slugTeamAway == "MIL")
+
+# Analyze shooting performance
+home_fg_percentage <- sum(home_games$isShotMade) / nrow(home_games)
+away_fg_percentage <- sum(away_games$isShotMade) / nrow(away_games)
+
+# Print results
+cat("Home FG%:", home_fg_percentage, "\n")
+cat("Away FG%:", away_fg_percentage, "\n")
+```
+## Further analysis was conducted to examine the distribution of home and away games, revealing that approximately 46.66% of the games were played at home, while 45.79% were played away, spanning the years 2000, 2010, and 2021 respectively.
+
+
+
+
+
+```{r echo=FALSE}
+# Shot Efficiency Analysis
+shot_efficiency <- shot_data %>%
+  group_by(namePlayer) %>%
+  summarise(ShootingPercentage = sum(isShotMade) / sum(isShotAttempted) * 100)
+
+# Visualize shooting percentage for each player
+ggplot(shot_efficiency, aes(x = reorder(namePlayer,ShootingPercentage, decreasing = TRUE), y = ShootingPercentage)) +
+  geom_bar(stat = "identity", fill = "purple") +
+  labs(title = "Shooting Percentage for Each Player", x = "Player", y = "Shooting Percentage") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```
+
+
+## The graph illustrates the shooting percentages of players over the selected years, arranged from highest to lowest. For instance, Rodions Kurucs, standing at 6 ft 9, consistently exhibits high shooting percentages during this period. On the other hand, Jaylen Adams, a 6 ft point guard, demonstrates comparatively lower shooting percentages.
+
+
+```{r echo=FALSE}
+# Identify top-performing players based on points scored
+top_players <- shot_data %>%
+  group_by(namePlayer) %>%
+  summarise(TotalPoints = sum(isShotMade))
+
+# Compare acurate shooting performances of different players
+ggplot(top_players, aes(x = reorder(namePlayer, -TotalPoints), y = TotalPoints)) +
+  geom_bar(stat = "identity", fill = "orange") +
+  labs(title = "Top-performing Players by Made Shots", x = "Player", y = "Total Made shots") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+
+```
+
+## On the contrary, this graph reveals that high shooting percentages do not necessarily correlate with high accuracy. For example, while Kurucs records the highest number of shots attempted, he ranks third in terms of shots made, indicating a lower accuracy rate than expected. Conversely, Glenn tops the list for the highest number of made shots across the selected years, yet his shooting percentage ranks 19th, suggesting greater accuracy than Kurucs. Additionally, Adams, despite having shooting percentages, fails to convert any shots, likely due to his role as a point guard on the court.
+
+
+
+
+## The Tasks
+
+1. (30 points) Produce a graphic displaying the shot locations for a particular team over several years. Some notes:
+
+   - Colors should be chosen to reflect the team, if possible.
+   - There are likely many overlaid points -- handle this by either binning these by location, or use opacity.
+   - Incorporate information about whether the shot was made or not (shape, color, etc.).
+   - The graphic should be well-labeled, titled, etc.
+   - Start with a graph for a single year, then extend to several years. Up to 20 years of shot data is available. Either facet these by year or animate using the years.
+   - You'll want to figure out what the coordinates mean somehow. This might be through the documentation, but could also be determined using aspects of the data itself and the dimensions of an NBA court.
+    - Put a basketball court on the background of the image (you'll need to scale it appropriately).
+    
+   
+2. (30 points) Summarize the graphic/series of graphics into a digestible, bullet-point brief report for front-office staff. Some notes:
+
+   - The main body of the report should be very brief -- just the graphic(s) and the bullet-pointed list of findings, which should be short and clear.
+   - Include a more detailed explanation of these bullet points, for further reading by those interested. This section should follow the bullet-point section, but should be organized similarly for reference. 
+   - Your report to the front-office shouldn't include any code.
+   - This report should be generated using RMarkdown. However, the choice of output type (Word, PDF, or HTML) is up to you (you could even make slides if you want to). 
+   
+3. (30 points) Write and document clean, efficient, reproducible code. Some notes:
+
+   - This code will be viewed by your direct supervisor.
+   - The code file should include your code to gather, join, and clean the data; the code to generate the graphic(s) presented; and your commentary on the results (so, a single .rmd file, or an .rmd file that sources an .r file).
+   - Your code should be clean, organized, and reproducible. Remove unnecessary/scratch/exploratory code.
+   - Your code should be well commented. In particular, any decisions or judgement calls made in the analysis process should be explained/justified. Sections of code should be identified even if not functionalized (including purpose, data/argument inputs, analysis outputs).
+   
+4. (10 points) Above and Beyond. Choose either option below. You are welcome to explore both, but only one is required. 
+
+  - Option 1: Explore the data a bit, and create a graphic that uses (or incorporates) different information than what was used above. Some notes:
+    - Create an additional graphic that incorporates at least one additional variable not previously used (this should add to the graphic in part 1). The additional data should be drawn from a different dataset (function call) than the original graphic used. These two (or more) datasets may need to be joined appropriately.
+    - You can either add more information to the plot above, or create a different plot. 
+     - Formatting, labelling, etc. are all important here too.
+    - Adding marginal densities or other "bells and whistles" might offer additional insight.
+    - This graphic should be included at the end of the report (after the more detailed explanations). 
+     - You should include a brief description of the graphic (highlighting the different/additional information used).
+  - Option 2: If the NBA were to incorporate a 4-point shot, where would you draw a 4-point arc? Some notes:
+    - You likely should base your decision at least partly on proportion of shots made from a given range. You might consider an expected value calculation here.
+    - Your arc can be shaped as you see fit; simple arcs are sufficient for this exploration.
+    - Provide an example of a consequence (positive or negative) if a 4-point shot was incorporated. (e.g., "my_favorite_player's season point total would increase by x%")
+    - You do not need to create a plot representing your arc, though you are welcome to do so!
+
+  
+## The Deliverables
+
+1. Upload your report and code file(s) to GitHub by 11:59am (noon) on Friday, March 29.
+2. Submit (on Canvas) your report, code, and link to your GitHub repository by 11:59am (noon) on Friday, March 29.
+  
+  
+  
+  
+
+
